@@ -33,14 +33,14 @@ export default function Navbar() {
           <div>
             <div className="flex items-center gap-1.5">
               <span className="text-lg font-extrabold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent dark:from-blue-400 dark:to-indigo-300">
-                XSTK UET
+                Xác Suất Thống Kê
               </span>
               <span className="rounded-md bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
-                MAT1052
+                1.000 Câu
               </span>
             </div>
             <p className="hidden text-[11px] text-slate-500 dark:text-slate-400 sm:block">
-              Ngân hàng 1.000 câu hỏi ôn thi
+              Ngân hàng 1.000 câu hỏi ôn tập
             </p>
           </div>
         </Link>

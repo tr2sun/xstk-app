@@ -148,7 +148,7 @@ export default function QuestionCard({
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 dark:border-slate-800/80">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-mono text-xs font-semibold text-slate-500 dark:text-slate-400">
-            #{question.id}
+            #{question.id.replace('MAT1052-', '')}
           </span>
           <span className={`rounded-md border px-2 py-0.5 text-xs font-medium ${typeBadgeColor}`}>
             {question.type}

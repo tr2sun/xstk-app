@@ -228,7 +228,7 @@ export default function ExamPage() {
           <div className="text-center">
             <div className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700 dark:bg-blue-950 dark:text-blue-300">
               <Trophy className="h-3.5 w-3.5" />
-              <span>Phòng Thi Thử Chuẩn MAT1052</span>
+              <span>Phòng Thi Thử Trắc Nghiệm</span>
             </div>
             <h1 className="mt-3 text-2xl font-black text-slate-900 dark:text-white sm:text-4xl">
               Chọn Hình Thức Luyện Đề
@@ -579,7 +579,7 @@ export default function ExamPage() {
                     Câu {currentIndex + 1}
                   </span>
                   <span className="font-mono text-xs text-slate-400">
-                    #{currentQ.id}
+                    #{currentQ.id.replace('MAT1052-', '')}
                   </span>
                   <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                     {currentQ.type}
@@ -940,7 +940,7 @@ export default function ExamPage() {
                     <span className="font-bold text-slate-700 dark:text-slate-300">
                       Câu {idx + 1}
                     </span>
-                    <span className="text-xs text-slate-400">#{q.id}</span>
+                    <span className="text-xs text-slate-400">#{q.id.replace('MAT1052-', '')}</span>
                     <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                       {q.type}
                     </span>

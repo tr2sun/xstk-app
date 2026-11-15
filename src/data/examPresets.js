@@ -3,8 +3,8 @@ import { questions } from './questions'
 export const EXAM_PRESETS = [
   {
     id: 'standard',
-    title: 'Đề thi Chuẩn UET MAT1052',
-    subtitle: 'Mô phỏng 100% cấu trúc đề thi chính thức VNU',
+    title: 'Đề thi Tiêu Chuẩn',
+    subtitle: 'Mô phỏng 100% cấu trúc đề thi chính thức',
     durationMinutes: 90,
     totalQuestions: 28,
     composition: {
@@ -137,7 +137,7 @@ export function gradeExam(presetId, examQuestions, userAnswers) {
   }
 
   if (presetId === 'standard') {
-    // Standard UET scale:
+    // Standard exam scale:
     // 18 MCQ: 0.25 pt each = 4.5 pts
     // 4 TF: graded per sub-item a,b,c,d: 1=0.1, 2=0.25, 3=0.5, 4=1.0 pt
     // 6 Essay: 0.25 pt each = 1.5 pts
@@ -172,7 +172,7 @@ export function gradeExam(presetId, examQuestions, userAnswers) {
           }
         })
 
-        // VNU standard grading ladder: 1->0.1, 2->0.25, 3->0.5, 4->1.0
+        // Standard grading ladder: 1->0.1, 2->0.25, 3->0.5, 4->1.0
         const ladder = { 0: 0, 1: 0.1, 2: 0.25, 3: 0.5, 4: 1.0 }
         const pts = ladder[correctSubs] || 0
         breakdown.tf.points += pts

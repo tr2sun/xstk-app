@@ -89,7 +89,7 @@ export default function MistakesPage() {
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5 dark:border-slate-800">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-mono text-xs font-bold text-slate-500 dark:text-slate-400">
-                      #{item.id}
+                      #{item.id.replace('MAT1052-', '')}
                     </span>
                     <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                       Tuần {item.week}

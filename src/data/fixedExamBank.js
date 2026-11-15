@@ -3,12 +3,12 @@ import { questions } from './questions'
 export const EXAM_CATEGORIES = [
   {
     id: 'standard',
-    title: 'Đề Chuẩn UET',
-    shortName: 'Chuẩn UET',
+    title: 'Đề Thi Tiêu Chuẩn',
+    shortName: 'Tiêu chuẩn',
     durationMinutes: 90,
     questionCount: 28,
     examCount: 35,
-    description: '18 câu Trắc nghiệm + 4 câu Đúng/Sai + 6 câu Tự luận. Bao phủ 100% ngân hàng 1.000 câu theo thang điểm 10 VNU.',
+    description: '18 câu Trắc nghiệm + 4 câu Đúng/Sai + 6 câu Tự luận. Bao phủ 100% ngân hàng 1.000 câu theo thang điểm 10.',
     badgeColor: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
   },
   {
@@ -52,10 +52,10 @@ const hardcorePool = questions.filter(q => q.difficulty === 'Vận dụng cao' |
 // Build all fixed exams deterministically once
 const allFixedExams = {}
 
-// 1. Generate 35 Standard Exams (UET-01 to UET-35)
+// 1. Generate 35 Standard Exams (DE-01 to DE-35)
 // Each exam: 18 MCQ, 4 TF, 6 Essay
 for (let i = 0; i < 35; i++) {
-  const examId = `UET-${String(i + 1).padStart(2, '0')}`
+  const examId = `DE-${String(i + 1).padStart(2, '0')}`
 
   // Deterministic slice for MCQ (wraps around if needed)
   const mcqSlice = []
@@ -88,7 +88,7 @@ for (let i = 0; i < 35; i++) {
     code: examId,
     title: `Mã đề ${examId}`,
     category: 'standard',
-    categoryName: 'Đề thi Chuẩn UET',
+    categoryName: 'Đề Thi Tiêu Chuẩn',
     durationMinutes: 90,
     totalQuestions: 28,
     questions: combined

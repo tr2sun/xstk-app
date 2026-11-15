@@ -58,7 +58,7 @@ export default function SearchPage() {
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Nhập từ khóa tìm kiếm (ví dụ: xác suất, hồi quy, kỳ vọng, MAT1052-0150...)"
+          placeholder="Nhập từ khóa tìm kiếm (ví dụ: xác suất, hồi quy, kỳ vọng, #0150...)"
           className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pr-10 pl-11 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-hidden dark:border-slate-800 dark:bg-slate-900 dark:text-white sm:text-base transition-colors"
         />
         {query && (
@@ -123,7 +123,7 @@ export default function SearchPage() {
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5 dark:border-slate-800">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-xs font-bold text-slate-500 dark:text-slate-400">
-                    #{item.id}
+                    #{item.id.replace('MAT1052-', '')}
                   </span>
                   <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                     Tuần {item.week}

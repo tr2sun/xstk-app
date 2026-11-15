@@ -29,10 +29,10 @@ export default function App() {
           <footer className="border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
             <div className="mx-auto max-w-7xl px-4 space-y-1">
               <p className="font-semibold text-slate-700 dark:text-slate-300">
-                MAT1052 — Xác suất & Thống kê | UET - ĐHQGHN
+                Xác suất & Thống kê — Nền tảng Ôn tập Trắc nghiệm
               </p>
               <p>
-                Dữ liệu ôn tập từ Ngân hàng 1.000 câu hỏi học phần MAT1052. Lưu trữ trên máy người dùng (Client-Side).
+                Ngân hàng 1.000 câu hỏi ôn luyện. Lưu trữ tiến độ học tập trên máy người dùng (Client-Side).
               </p>
             </div>
           </footer>
