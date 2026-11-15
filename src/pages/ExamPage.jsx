@@ -17,7 +17,8 @@ import {
   Award,
   ArrowRight,
   Filter,
-  Eye
+  Eye,
+  ArrowLeft
 } from 'lucide-react'
 import { EXAM_CATEGORIES, getExamsByCategory, getExamById } from '../data/fixedExamBank'
 import { gradeExam } from '../data/examPresets'
@@ -28,6 +29,8 @@ import { useExamHistory } from '../hooks/useExamHistory'
 export default function ExamPage() {
   // Phase: 'lobby' | 'exam' | 'result'
   const [phase, setPhase] = useState('lobby')
+  // Lobby step: 'categories' (Chọn kiểu form đề) | 'codes' (Chọn mã đề cụ thể)
+  const [lobbyStep, setLobbyStep] = useState('categories')
   const [activeCategory, setActiveCategory] = useState('standard')
   const [filterStatus, setFilterStatus] = useState('all') // 'all' | 'completed' | 'uncompleted'
 
@@ -66,6 +69,13 @@ export default function ExamPage() {
       return () => clearInterval(timerRef.current)
     }
   }, [phase, timeLeft])
+
+  // Select category -> go to codes selection
+  const handleSelectCategory = (catId) => {
+    setActiveCategory(catId)
+    setFilterStatus('all')
+    setLobbyStep('codes')
+  }
 
   // Start exam from a specific fixed exam
   const handleStartExam = (exam) => {
@@ -179,6 +189,13 @@ export default function ExamPage() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
+  const categoryIcons = {
+    standard: Trophy,
+    speed: Zap,
+    true_false: CheckSquare,
+    hardcore: Flame
+  }
+
   // Current list of exams for active category tab
   const categoryExams = getExamsByCategory(activeCategory)
   const categoryInfo = EXAM_CATEGORIES.find(c => c.id === activeCategory) || EXAM_CATEGORIES[0]
@@ -199,56 +216,134 @@ export default function ExamPage() {
   })
 
   // ==========================================
-  // VIEW 1: LOBBY (Danh sách Mã Đề Cố Định)
+  // VIEW 1: LOBBY
   // ==========================================
   if (phase === 'lobby') {
+    // ------------------------------------------
+    // STEP 1A: CHỌN KIỂU FORM ĐỀ BAN ĐẦU
+    // ------------------------------------------
+    if (lobbyStep === 'categories') {
+      return (
+        <div className="mx-auto max-w-5xl space-y-8 px-4 py-8 sm:px-6">
+          <div className="text-center">
+            <div className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+              <Trophy className="h-3.5 w-3.5" />
+              <span>Phòng Thi Thử Chuẩn MAT1052</span>
+            </div>
+            <h1 className="mt-3 text-2xl font-black text-slate-900 dark:text-white sm:text-4xl">
+              Chọn Hình Thức Luyện Đề
+            </h1>
+            <p className="mx-auto mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-400 sm:text-base">
+              Chọn kiểu form đề bạn muốn ôn tập để mở danh sách các mã đề thi tương ứng.
+            </p>
+          </div>
+
+          {/* Form Selection Cards Grid */}
+          <div className="grid gap-5 sm:grid-cols-2">
+            {EXAM_CATEGORIES.map(cat => {
+              const Icon = categoryIcons[cat.id] || Trophy
+              const catExams = getExamsByCategory(cat.id)
+              const completedCount = catExams.filter(e => !!history[e.id]).length
+              const percent = Math.round((completedCount / cat.examCount) * 100)
+
+              return (
+                <div
+                  key={cat.id}
+                  onClick={() => handleSelectCategory(cat.id)}
+                  className="group relative flex cursor-pointer flex-col justify-between rounded-3xl border border-slate-200 bg-white p-6 shadow-xs hover:border-blue-500 hover:shadow-lg transition-all dark:border-slate-800 dark:bg-slate-900"
+                >
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className={`rounded-lg px-2.5 py-1 text-xs font-bold ${cat.badgeColor}`}>
+                        {cat.examCount} mã đề cố định
+                      </span>
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                        <Clock className="h-3.5 w-3.5 text-blue-500" />
+                        <span>{cat.durationMinutes} phút</span>
+                        <span>•</span>
+                        <span>{cat.questionCount} câu</span>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 flex items-center gap-3">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 group-hover:scale-105 group-hover:bg-blue-600 group-hover:text-white transition-all dark:bg-blue-950/60 dark:text-blue-400">
+                        <Icon className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                          {cat.title}
+                        </h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          {cat.durationMinutes} phút · {cat.questionCount} câu/đề · Thang điểm 10
+                        </p>
+                      </div>
+                    </div>
+
+                    <p className="mt-4 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                      {cat.description}
+                    </p>
+                  </div>
+
+                  {/* Progress & Select Button */}
+                  <div className="mt-6 border-t border-slate-100 pt-4 dark:border-slate-800">
+                    <div className="mb-3 flex items-center justify-between text-xs font-medium text-slate-500 dark:text-slate-400">
+                      <span>Đã hoàn thành: <strong>{completedCount} / {cat.examCount}</strong> đề</span>
+                      <span className="font-bold text-blue-600 dark:text-blue-400">{percent}%</span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800 mb-4">
+                      <div
+                        className="h-full rounded-full bg-blue-600 transition-all duration-300"
+                        style={{ width: `${percent}%` }}
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 py-3 text-xs font-bold text-white group-hover:bg-blue-600 shadow-md group-hover:shadow-blue-500/20 transition-all dark:bg-slate-800 dark:group-hover:bg-blue-600"
+                    >
+                      <span>Chọn xem các mã đề</span>
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )
+    }
+
+    // ------------------------------------------
+    // STEP 1B: CHỌN MÃ ĐỀ CỦA FORM ĐÃ CHỌN
+    // ------------------------------------------
     return (
       <div className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6">
-        {/* Title */}
-        <div className="text-center">
-          <div className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-            <Trophy className="h-3.5 w-3.5" />
-            <span>Ngân Hàng Mã Đề Cố Định MAT1052</span>
-          </div>
-          <h1 className="mt-2 text-2xl font-black text-slate-900 dark:text-white sm:text-4xl">
-            Trung Tâm Luyện Đề Thi Thử
-          </h1>
-          <p className="mx-auto mt-2 max-w-2xl text-xs text-slate-600 dark:text-slate-400 sm:text-sm">
-            Hệ thống mã đề cố định chuẩn UET giúp bạn theo dõi lộ trình làm bài, tự đánh giá điểm số và bao phủ toàn bộ 1.000 câu hỏi.
-          </p>
-        </div>
+        {/* Back to Categories selection */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => setLobbyStep('categories')}
+            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 transition-colors shadow-2xs"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Đổi kiểu form đề khác</span>
+          </button>
 
-        {/* Category Tabs */}
-        <div className="flex flex-wrap items-center justify-center gap-2 border-b border-slate-200 pb-3 dark:border-slate-800">
-          {EXAM_CATEGORIES.map(cat => {
-            const isActive = activeCategory === cat.id
-            const catExams = getExamsByCategory(cat.id)
-            const doneCount = catExams.filter(e => !!history[e.id]).length
-
-            return (
+          {/* Quick tab switcher */}
+          <div className="hidden sm:flex items-center gap-1.5">
+            {EXAM_CATEGORIES.map(cat => (
               <button
                 key={cat.id}
-                onClick={() => {
-                  setActiveCategory(cat.id)
-                  setFilterStatus('all')
-                }}
-                className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all ${
-                  isActive
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
-                    : 'bg-white text-slate-700 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
+                onClick={() => handleSelectCategory(cat.id)}
+                className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors ${
+                  activeCategory === cat.id
+                    ? 'bg-blue-600 text-white'
+                    : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
                 }`}
               >
-                <span>{cat.title} ({cat.examCount})</span>
-                {doneCount > 0 && (
-                  <span className={`rounded-full px-1.5 py-0.2 text-[10px] font-black ${
-                    isActive ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                  }`}>
-                    {doneCount}/{cat.examCount}
-                  </span>
-                )}
+                {cat.shortName}
               </button>
-            )
-          })}
+            ))}
+          </div>
         </div>
 
         {/* Progress & Category Banner */}
@@ -256,7 +351,7 @@ export default function ExamPage() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-slate-900 dark:text-white sm:text-lg">
+                <h2 className="text-lg font-black text-slate-900 dark:text-white sm:text-xl">
                   {categoryInfo.title}
                 </h2>
                 <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${categoryInfo.badgeColor}`}>
@@ -304,7 +399,7 @@ export default function ExamPage() {
         <div className="flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
             <Filter className="h-3.5 w-3.5 text-slate-400" />
-            <span className="font-semibold text-slate-500 dark:text-slate-400">Lọc đề:</span>
+            <span className="font-semibold text-slate-500 dark:text-slate-400">Lọc mã đề:</span>
             {[
               { id: 'all', label: 'Tất cả' },
               { id: 'uncompleted', label: 'Chưa làm' },
@@ -782,7 +877,10 @@ export default function ExamPage() {
           {/* Action buttons */}
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
             <button
-              onClick={() => setPhase('lobby')}
+              onClick={() => {
+                setPhase('lobby')
+                setLobbyStep('codes')
+              }}
               className="flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 transition-all"
             >
               <ArrowRight className="h-4 w-4" />
