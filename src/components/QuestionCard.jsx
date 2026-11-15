@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { Bookmark, CheckCircle2, XCircle, HelpCircle, RotateCcw, Eye, ArrowRight } from 'lucide-react'
+import { Bookmark, CheckCircle2, XCircle, HelpCircle, RotateCcw, Eye, ArrowRight, Bot, Sparkles, Check } from 'lucide-react'
 import MathText from './MathText'
+import { openAICompanion } from '../utils/aiHelper'
 
 export default function QuestionCard({
   question,
@@ -19,6 +20,7 @@ export default function QuestionCard({
   // State for checked / revealed
   const [isChecked, setIsChecked] = useState(false)
   const [showEssaySolution, setShowEssaySolution] = useState(false)
+  const [geminiToast, setGeminiToast] = useState(false)
 
   // Reset local state whenever question changes
   useEffect(() => {
@@ -26,6 +28,7 @@ export default function QuestionCard({
     setTfAnswers({ a: null, b: null, c: null, d: null })
     setIsChecked(false)
     setShowEssaySolution(false)
+    setGeminiToast(false)
   }, [question?.id])
 
   if (!question) return null
@@ -135,6 +138,12 @@ export default function QuestionCard({
     setShowEssaySolution(false)
   }
 
+  const handleGeminiClick = () => {
+    openAICompanion('gemini', question)
+    setGeminiToast(true)
+    setTimeout(() => setGeminiToast(false), 4000)
+  }
+
   // Type badge color
   const typeBadgeColor = {
     'Trắc nghiệm': 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border-blue-200 dark:border-blue-800',
@@ -144,6 +153,14 @@ export default function QuestionCard({
 
   return (
     <div className="relative rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition-all dark:border-slate-800 dark:bg-slate-900 sm:p-7">
+      {/* Toast Notification for Gemini */}
+      {geminiToast && (
+        <div className="mb-3 flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 p-2.5 text-xs font-semibold text-indigo-900 dark:border-indigo-800 dark:bg-indigo-950/70 dark:text-indigo-200 animate-in fade-in slide-in-from-top-1">
+          <Check className="h-4 w-4 text-emerald-600" />
+          <span>Đã sao chép câu hỏi vào bộ nhớ! Cửa sổ Gemini đã mở bên phải, bạn chỉ cần bấm <strong>Ctrl + V</strong> để gửi.</span>
+        </div>
+      )}
+
       {/* Header: Meta tags & Bookmark */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 dark:border-slate-800/80">
         <div className="flex flex-wrap items-center gap-2">
@@ -391,9 +408,9 @@ export default function QuestionCard({
         </div>
       )}
 
-      {/* Footer Actions: Check button, Reset, Next */}
+      {/* Footer Actions: Check button, Reset, AI companions, Next */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {!isChecked && question.type !== 'Tự luận' ? (
             <button
               type="button"
@@ -402,7 +419,7 @@ export default function QuestionCard({
                 (question.type === 'Trắc nghiệm' && !selectedOption) ||
                 (question.type === 'Đúng / Sai' && !Object.values(tfAnswers).every(v => v !== null))
               }
-              className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40 transition-all"
+              className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40 transition-all"
             >
               <span>Kiểm tra đáp án</span>
             </button>
@@ -410,12 +427,34 @@ export default function QuestionCard({
             <button
               type="button"
               onClick={handleReset}
-              className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 transition-colors"
+              className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3.5 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 transition-colors"
             >
               <RotateCcw className="h-3.5 w-3.5" />
               <span>Làm lại</span>
             </button>
           )}
+
+          {/* AI Companion Buttons */}
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => openAICompanion('chatgpt', question)}
+              className="flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/80 px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 hover:border-emerald-300 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/70 transition-all"
+              title="Mở cửa sổ ChatGPT bên phải và tự động điền câu hỏi"
+            >
+              <Bot className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>Hỏi ChatGPT</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleGeminiClick}
+              className="flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/80 px-3 py-2 text-xs font-semibold text-indigo-800 hover:bg-indigo-100 hover:border-indigo-300 dark:border-indigo-900/60 dark:bg-indigo-950/40 dark:text-indigo-300 dark:hover:bg-indigo-950/70 transition-all"
+              title="Mở cửa sổ Google Gemini bên phải và copy câu hỏi"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span>Hỏi Gemini</span>
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">

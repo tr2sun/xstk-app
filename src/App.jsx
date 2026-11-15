@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { ThemeProvider } from './context/ThemeContext'
 import Navbar from './components/Navbar'
 import PracticePage from './pages/PracticePage'
+import ExamPage from './pages/ExamPage'
 import SearchPage from './pages/SearchPage'
 import MistakesPage from './pages/MistakesPage'
 import StatsPage from './pages/StatsPage'
@@ -16,6 +17,7 @@ export default function App() {
           <main className="flex-1 pb-16">
             <Routes>
               <Route path="/" element={<PracticePage />} />
+              <Route path="/exam" element={<ExamPage />} />
               <Route path="/search" element={<SearchPage />} />
               <Route path="/mistakes" element={<MistakesPage />} />
               <Route path="/stats" element={<StatsPage />} />

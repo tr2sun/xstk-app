@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { NavLink, Link } from 'react-router-dom'
-import { BookOpen, Search, Bookmark, BarChart2, Sun, Moon, Menu, X, GraduationCap } from 'lucide-react'
+import { BookOpen, Trophy, Search, Bookmark, BarChart2, Sun, Moon, Menu, X, GraduationCap } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 import { useMistakes } from '../hooks/useMistakes'
 
@@ -11,6 +11,7 @@ export default function Navbar() {
 
   const navLinks = [
     { to: '/', label: 'Luyện tập', icon: BookOpen },
+    { to: '/exam', label: 'Thi thử', icon: Trophy, isHot: true },
     { to: '/search', label: 'Tra cứu', icon: Search },
     { 
       to: '/mistakes', 
@@ -46,7 +47,7 @@ export default function Navbar() {
 
         {/* Desktop Navigation */}
         <nav className="hidden items-center gap-1 md:flex">
-          {navLinks.map(({ to, label, icon: Icon, badge }) => (
+          {navLinks.map(({ to, label, icon: Icon, badge, isHot }) => (
             <NavLink
               key={to}
               to={to}
@@ -60,7 +61,12 @@ export default function Navbar() {
             >
               <Icon className="h-4 w-4" />
               <span>{label}</span>
-              {badge !== null && (
+              {isHot && (
+                <span className="rounded-full bg-gradient-to-r from-rose-500 to-amber-500 px-1.5 py-0.2 text-[9px] font-black uppercase text-white shadow-xs">
+                  Mới
+                </span>
+              )}
+              {badge !== null && badge !== undefined && (
                 <span className="ml-1 rounded-full bg-red-500 px-1.5 py-0.2 text-[10px] font-bold text-white">
                   {badge}
                 </span>
@@ -98,7 +104,7 @@ export default function Navbar() {
       {mobileMenuOpen && (
         <div className="border-t border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900 md:hidden">
           <nav className="flex flex-col gap-1">
-            {navLinks.map(({ to, label, icon: Icon, badge }) => (
+            {navLinks.map(({ to, label, icon: Icon, badge, isHot }) => (
               <NavLink
                 key={to}
                 to={to}
@@ -114,8 +120,13 @@ export default function Navbar() {
                 <div className="flex items-center gap-2">
                   <Icon className="h-4 w-4" />
                   <span>{label}</span>
+                  {isHot && (
+                    <span className="rounded-full bg-gradient-to-r from-rose-500 to-amber-500 px-1.5 py-0.2 text-[9px] font-bold text-white">
+                      Mới
+                    </span>
+                  )}
                 </div>
-                {badge !== null && (
+                {badge !== null && badge !== undefined && (
                   <span className="rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
                     {badge}
                   </span>
