@@ -5,7 +5,6 @@ import {
   Zap,
   CheckSquare,
   Flame,
-  Sliders,
   Flag,
   ChevronLeft,
   ChevronRight,
@@ -15,25 +14,25 @@ import {
   CheckCircle,
   XCircle,
   Play,
+  Award,
   ArrowRight,
-  Award
+  Filter,
+  Eye
 } from 'lucide-react'
-import { EXAM_PRESETS, generateExam, gradeExam } from '../data/examPresets'
+import { EXAM_CATEGORIES, getExamsByCategory, getExamById } from '../data/fixedExamBank'
+import { gradeExam } from '../data/examPresets'
 import MathText from '../components/MathText'
 import { useMistakes } from '../hooks/useMistakes'
+import { useExamHistory } from '../hooks/useExamHistory'
 
 export default function ExamPage() {
-  // Page phase: 'lobby' | 'exam' | 'result'
+  // Phase: 'lobby' | 'exam' | 'result'
   const [phase, setPhase] = useState('lobby')
-  const [selectedPreset, setSelectedPreset] = useState(EXAM_PRESETS[0])
+  const [activeCategory, setActiveCategory] = useState('standard')
+  const [filterStatus, setFilterStatus] = useState('all') // 'all' | 'completed' | 'uncompleted'
 
-  // Custom configuration
-  const [customQuestions, setCustomQuestions] = useState(25)
-  const [customMinutes, setCustomMinutes] = useState(45)
-  const [customWeeks, setCustomWeeks] = useState([1, 2, 3, 4, 5, 6, 7])
-
-  // Active exam state
-  const [examQuestions, setExamQuestions] = useState([])
+  // Exam runtime state
+  const [activeExam, setActiveExam] = useState(null)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [userAnswers, setUserAnswers] = useState({}) // { [qId]: { selected, answers, selfGraded } }
   const [flaggedIds, setFlaggedIds] = useState(new Set())
@@ -46,9 +45,10 @@ export default function ExamPage() {
   const [bulkSavedMistakes, setBulkSavedMistakes] = useState(false)
 
   const { toggleMistake, isMistake } = useMistakes()
+  const { history, recordExamResult } = useExamHistory()
   const timerRef = useRef(null)
 
-  // Countdown timer effect during exam
+  // Timer countdown
   useEffect(() => {
     if (phase === 'exam' && timeLeft > 0) {
       timerRef.current = setInterval(() => {
@@ -67,27 +67,37 @@ export default function ExamPage() {
     }
   }, [phase, timeLeft])
 
-  // Start exam handler
-  const handleStartExam = (preset) => {
-    setSelectedPreset(preset)
-    const questionsList = generateExam(preset.id, {
-      questionCount: customQuestions,
-      weeks: customWeeks
-    })
-
-    setExamQuestions(questionsList)
+  // Start exam from a specific fixed exam
+  const handleStartExam = (exam) => {
+    setActiveExam(exam)
     setCurrentIndex(0)
     setUserAnswers({})
     setFlaggedIds(new Set())
     setBulkSavedMistakes(false)
 
-    const totalSeconds = (preset.id === 'custom' ? customMinutes : preset.durationMinutes) * 60
+    const totalSeconds = exam.durationMinutes * 60
     setTimeLeft(totalSeconds)
     setTimeSpent(0)
     setPhase('exam')
   }
 
-  // Answer handler for current question
+  // Review a previously completed exam
+  const handleReviewOldExam = (exam) => {
+    const record = history[exam.id]
+    if (!record) return
+    setActiveExam(exam)
+    setUserAnswers(record.userAnswers || {})
+    setExamResult({
+      score: record.score,
+      maxScore: record.maxScore || 10,
+      correctCount: record.correctCount || 0,
+      wrongCount: record.wrongCount || 0
+    })
+    setTimeSpent(record.timeSpent || 0)
+    setPhase('result')
+  }
+
+  // Answer handlers
   const handleSelectOption = (qId, optionKey) => {
     setUserAnswers(prev => ({
       ...prev,
@@ -117,20 +127,32 @@ export default function ExamPage() {
     })
   }
 
-  // Submit and grade exam
+  // Finish exam and grade
   const handleFinishExam = () => {
     if (timerRef.current) clearInterval(timerRef.current)
     setShowConfirmSubmit(false)
 
-    const result = gradeExam(selectedPreset.id, examQuestions, userAnswers)
+    const result = gradeExam(activeExam.category, activeExam.questions, userAnswers)
     setExamResult(result)
+
+    // Save record to exam history
+    recordExamResult(activeExam.id, {
+      score: result.score,
+      maxScore: result.maxScore,
+      correctCount: result.correctCount,
+      wrongCount: result.wrongCount,
+      totalQuestions: activeExam.totalQuestions,
+      timeSpent: timeSpent,
+      userAnswers: userAnswers
+    })
+
     setPhase('result')
   }
 
-  // Bulk save wrong questions to mistakes notebook
+  // Save all mistakes to notebook
   const handleSaveAllMistakes = () => {
-    if (!examQuestions || !examResult) return
-    examQuestions.forEach(q => {
+    if (!activeExam || !examResult) return
+    activeExam.questions.forEach(q => {
       const ans = userAnswers[q.id]
       let isCorrect = false
       if (q.type === 'Trắc nghiệm') {
@@ -151,102 +173,232 @@ export default function ExamPage() {
     setBulkSavedMistakes(true)
   }
 
-  // Formatting time MM:SS
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
-  // Helper icons
-  const presetIcons = {
-    standard: Trophy,
-    speed: Zap,
-    true_false: CheckSquare,
-    hardcore: Flame,
-    custom: Sliders
-  }
+  // Current list of exams for active category tab
+  const categoryExams = getExamsByCategory(activeCategory)
+  const categoryInfo = EXAM_CATEGORIES.find(c => c.id === activeCategory) || EXAM_CATEGORIES[0]
 
-  // Current question data
-  const currentQ = examQuestions[currentIndex] || null
+  // Category stats
+  const completedInExams = categoryExams.filter(e => !!history[e.id])
+  const completedPercent = categoryExams.length > 0 ? Math.round((completedInExams.length / categoryExams.length) * 100) : 0
+  const avgCategoryScore = completedInExams.length > 0
+    ? (completedInExams.reduce((sum, e) => sum + (history[e.id]?.score || 0), 0) / completedInExams.length).toFixed(1)
+    : '0.0'
 
-  // Count answered questions
-  const answeredCount = examQuestions.filter(q => {
-    const ans = userAnswers[q.id]
-    if (!ans) return false
-    if (q.type === 'Trắc nghiệm') return !!ans.selected
-    if (q.type === 'Đúng / Sai') {
-      return ans.answers && Object.keys(ans.answers).length === 4
-    }
-    return !!ans.selfGraded
-  }).length
+  // Filtered exams by completion status
+  const displayedExams = categoryExams.filter(exam => {
+    const isDone = !!history[exam.id]
+    if (filterStatus === 'completed') return isDone
+    if (filterStatus === 'uncompleted') return !isDone
+    return true
+  })
 
   // ==========================================
-  // VIEW 1: LOBBY (Sảnh chọn đề thi)
+  // VIEW 1: LOBBY (Danh sách Mã Đề Cố Định)
   // ==========================================
   if (phase === 'lobby') {
     return (
-      <div className="mx-auto max-w-5xl space-y-8 px-4 py-8 sm:px-6">
+      <div className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6">
+        {/* Title */}
         <div className="text-center">
           <div className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700 dark:bg-blue-950 dark:text-blue-300">
             <Trophy className="h-3.5 w-3.5" />
-            <span>Phòng Thi Thử Chuẩn MAT1052</span>
+            <span>Ngân Hàng Mã Đề Cố Định MAT1052</span>
           </div>
-          <h1 className="mt-3 text-2xl font-black text-slate-900 dark:text-white sm:text-4xl">
+          <h1 className="mt-2 text-2xl font-black text-slate-900 dark:text-white sm:text-4xl">
             Trung Tâm Luyện Đề Thi Thử
           </h1>
-          <p className="mx-auto mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-400 sm:text-base">
-            Mô phỏng 100% cấu trúc đề thi chính thức của UET. Có đếm ngược thời gian, chấm điểm chuẩn barem và xem lại đáp án chi tiết.
+          <p className="mx-auto mt-2 max-w-2xl text-xs text-slate-600 dark:text-slate-400 sm:text-sm">
+            Hệ thống mã đề cố định chuẩn UET giúp bạn theo dõi lộ trình làm bài, tự đánh giá điểm số và bao phủ toàn bộ 1.000 câu hỏi.
           </p>
         </div>
 
-        {/* Preset Cards Grid */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {EXAM_PRESETS.map(preset => {
-            const Icon = presetIcons[preset.id] || Trophy
+        {/* Category Tabs */}
+        <div className="flex flex-wrap items-center justify-center gap-2 border-b border-slate-200 pb-3 dark:border-slate-800">
+          {EXAM_CATEGORIES.map(cat => {
+            const isActive = activeCategory === cat.id
+            const catExams = getExamsByCategory(cat.id)
+            const doneCount = catExams.filter(e => !!history[e.id]).length
+
+            return (
+              <button
+                key={cat.id}
+                onClick={() => {
+                  setActiveCategory(cat.id)
+                  setFilterStatus('all')
+                }}
+                className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all ${
+                  isActive
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                    : 'bg-white text-slate-700 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
+                }`}
+              >
+                <span>{cat.title} ({cat.examCount})</span>
+                {doneCount > 0 && (
+                  <span className={`rounded-full px-1.5 py-0.2 text-[10px] font-black ${
+                    isActive ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                  }`}>
+                    {doneCount}/{cat.examCount}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Progress & Category Banner */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-slate-900 dark:text-white sm:text-lg">
+                  {categoryInfo.title}
+                </h2>
+                <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${categoryInfo.badgeColor}`}>
+                  {categoryInfo.durationMinutes} phút · {categoryInfo.questionCount} câu/đề
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                {categoryInfo.description}
+              </p>
+            </div>
+
+            {/* Quick stats */}
+            <div className="flex shrink-0 items-center gap-4 border-t border-slate-100 pt-3 sm:border-t-0 sm:pt-0 dark:border-slate-800">
+              <div className="text-right">
+                <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">Tiến độ cày đề</div>
+                <div className="text-lg font-black text-blue-600 dark:text-blue-400">
+                  {completedInExams.length} <span className="text-xs font-normal text-slate-400">/ {categoryExams.length} đề</span>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">Điểm trung bình</div>
+                <div className="text-lg font-black text-emerald-600 dark:text-emerald-400">
+                  {avgCategoryScore} <span className="text-xs font-normal text-slate-400">/ 10</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Progress bar */}
+          <div className="mt-4 space-y-1.5">
+            <div className="flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-400">
+              <span>Đã hoàn thành {completedPercent}% số đề</span>
+              <span>{completedInExams.length}/{categoryExams.length} đề</span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-blue-600 to-indigo-500 transition-all duration-300"
+                style={{ width: `${completedPercent}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Filter bar for exams (Tất cả / Chưa làm / Đã làm) */}
+        <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2">
+            <Filter className="h-3.5 w-3.5 text-slate-400" />
+            <span className="font-semibold text-slate-500 dark:text-slate-400">Lọc đề:</span>
+            {[
+              { id: 'all', label: 'Tất cả' },
+              { id: 'uncompleted', label: 'Chưa làm' },
+              { id: 'completed', label: 'Đã hoàn thành' }
+            ].map(f => (
+              <button
+                key={f.id}
+                onClick={() => setFilterStatus(f.id)}
+                className={`rounded-lg px-2.5 py-1 font-medium transition-colors ${
+                  filterStatus === f.id
+                    ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                    : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          <span className="text-slate-400">
+            Hiển thị <strong>{displayedExams.length}</strong> mã đề
+          </span>
+        </div>
+
+        {/* Fixed Exam Cards Grid */}
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          {displayedExams.map(exam => {
+            const record = history[exam.id]
+            const isCompleted = !!record
+
+            let scoreBadgeColor = 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+            if (isCompleted) {
+              if (record.score >= 8.5) {
+                scoreBadgeColor = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+              } else if (record.score >= 6.5) {
+                scoreBadgeColor = 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
+              } else {
+                scoreBadgeColor = 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+              }
+            }
+
             return (
               <div
-                key={preset.id}
-                className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-xs hover:border-blue-400 hover:shadow-md transition-all dark:border-slate-800 dark:bg-slate-900"
+                key={exam.id}
+                className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs hover:border-blue-400 hover:shadow-md transition-all dark:border-slate-800 dark:bg-slate-900"
               >
                 <div>
                   <div className="flex items-center justify-between">
-                    <span className={`rounded-md border px-2.5 py-0.5 text-xs font-bold ${preset.badgeColor}`}>
-                      {preset.badge}
+                    <span className="font-mono text-xs font-black tracking-tight text-slate-900 dark:text-white">
+                      {exam.code}
                     </span>
-                    <div className="flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    <span className={`rounded-md px-2 py-0.5 text-xs font-bold ${scoreBadgeColor}`}>
+                      {isCompleted ? `${record.score} / 10đ` : 'Chưa làm'}
+                    </span>
+                  </div>
+
+                  <h3 className="mt-2 text-sm font-bold text-slate-800 dark:text-slate-100">
+                    {exam.title}
+                  </h3>
+
+                  <div className="mt-2 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                    <span className="flex items-center gap-1">
                       <Clock className="h-3.5 w-3.5 text-blue-500" />
-                      <span>{preset.durationMinutes} phút</span>
-                    </div>
+                      <span>{exam.durationMinutes}p</span>
+                    </span>
+                    <span>•</span>
+                    <span>{exam.totalQuestions} câu hỏi</span>
                   </div>
 
-                  <div className="mt-4 flex items-center gap-2.5">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400">
-                      <Icon className="h-5 w-5" />
+                  {isCompleted && (
+                    <div className="mt-2 text-[11px] text-slate-400">
+                      Đúng {record.correctCount}/{exam.totalQuestions} câu · {formatTime(record.timeSpent || 0)}
                     </div>
-                    <div>
-                      <h3 className="font-bold text-slate-900 dark:text-white">
-                        {preset.title}
-                      </h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        {preset.totalQuestions} câu hỏi
-                      </p>
-                    </div>
-                  </div>
-
-                  <p className="mt-3 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
-                    {preset.description}
-                  </p>
+                  )}
                 </div>
 
-                <div className="mt-5 border-t border-slate-100 pt-4 dark:border-slate-800">
+                <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
                   <button
-                    onClick={() => handleStartExam(preset)}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 transition-all"
+                    onClick={() => handleStartExam(exam)}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-blue-600 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-700 transition-all"
                   >
-                    <Play className="h-3.5 w-3.5 fill-white" />
-                    <span>Bắt đầu thi thử</span>
+                    <Play className="h-3 w-3 fill-white" />
+                    <span>{isCompleted ? 'Thi lại' : 'Vào thi'}</span>
                   </button>
+
+                  {isCompleted && (
+                    <button
+                      onClick={() => handleReviewOldExam(exam)}
+                      className="flex items-center justify-center rounded-xl border border-slate-200 p-2 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                      title="Xem lại kết quả bài cũ"
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             )
@@ -257,13 +409,21 @@ export default function ExamPage() {
   }
 
   // ==========================================
-  // VIEW 2: EXAM ROOM (Phòng thi đang làm bài)
+  // VIEW 2: EXAM ROOM (Đang làm bài)
   // ==========================================
+  const currentQ = activeExam?.questions?.[currentIndex] || null
+  const answeredCount = activeExam?.questions?.filter(q => {
+    const ans = userAnswers[q.id]
+    if (!ans) return false
+    if (q.type === 'Trắc nghiệm') return !!ans.selected
+    if (q.type === 'Đúng / Sai') return ans.answers && Object.keys(ans.answers).length === 4
+    return !!ans.selfGraded
+  }).length || 0
+
   if (phase === 'exam' && currentQ) {
     const isFlagged = flaggedIds.has(currentQ.id)
-    const isTimeUrgent = timeLeft < 300 // < 5 mins
+    const isTimeUrgent = timeLeft < 300
 
-    // Sub-items parser for TF4
     let parsedTf = null
     if (currentQ.type === 'Đúng / Sai') {
       const match = currentQ.prompt.match(/^(.*?)(?:\s*a\s*\)\s*)(.*?)(?:\s*b\s*\)\s*)(.*?)(?:\s*c\s*\)\s*)(.*?)(?:\s*d\s*\)\s*)(.*)$/)
@@ -282,19 +442,18 @@ export default function ExamPage() {
 
     return (
       <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6">
-        {/* Sticky Header: Timer & Actions */}
+        {/* Sticky Header */}
         <div className="sticky top-16 z-30 mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/95">
           <div className="flex items-center gap-3">
             <span className="font-bold text-slate-900 dark:text-white">
-              {selectedPreset.title}
+              {activeExam.title}
             </span>
             <span className="hidden rounded-md bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300 sm:inline-block">
-              Đã làm: {answeredCount}/{examQuestions.length} câu
+              Đã làm: {answeredCount}/{activeExam.totalQuestions} câu
             </span>
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Countdown Timer */}
             <div className={`flex items-center gap-2 rounded-xl px-3.5 py-1.5 font-mono text-sm font-bold shadow-xs transition-colors ${
               isTimeUrgent
                 ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 animate-pulse'
@@ -304,7 +463,6 @@ export default function ExamPage() {
               <span>{formatTime(timeLeft)}</span>
             </div>
 
-            {/* Submit button */}
             <button
               onClick={() => setShowConfirmSubmit(true)}
               className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 transition-all"
@@ -314,12 +472,12 @@ export default function ExamPage() {
           </div>
         </div>
 
-        {/* Main Exam Grid: Left Question Pane, Right Navigation Grid */}
+        {/* Exam Split Panes */}
         <div className="grid gap-6 lg:grid-cols-4">
-          {/* Left Pane (3 cols): Question Content */}
+          {/* Main Question Pane */}
           <div className="lg:col-span-3">
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-7">
-              {/* Question Meta & Flag */}
+              {/* Question Header */}
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="rounded-md bg-blue-600 px-2.5 py-0.5 text-xs font-bold text-white">
@@ -350,7 +508,7 @@ export default function ExamPage() {
                 </button>
               </div>
 
-              {/* Question Prompt */}
+              {/* Prompt */}
               <div className="mb-6 text-base font-medium leading-relaxed text-slate-900 dark:text-slate-100 sm:text-lg">
                 {currentQ.type === 'Đúng / Sai' && parsedTf ? (
                   <MathText text={parsedTf.context} />
@@ -359,8 +517,7 @@ export default function ExamPage() {
                 )}
               </div>
 
-              {/* Answers Input Area */}
-              {/* 1. MCQ */}
+              {/* Answers */}
               {currentQ.type === 'Trắc nghiệm' && currentQ.options && (
                 <div className="mb-6 grid gap-2.5 sm:gap-3">
                   {Object.entries(currentQ.options).map(([k, val]) => {
@@ -390,7 +547,6 @@ export default function ExamPage() {
                 </div>
               )}
 
-              {/* 2. Đúng / Sai */}
               {currentQ.type === 'Đúng / Sai' && parsedTf && (
                 <div className="mb-6 space-y-3">
                   {parsedTf.statements.map(st => {
@@ -439,7 +595,6 @@ export default function ExamPage() {
                 </div>
               )}
 
-              {/* 3. Tự luận */}
               {currentQ.type === 'Tự luận' && (
                 <div className="mb-6 rounded-xl border border-dashed border-amber-300 bg-amber-50/50 p-4 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-300">
                   <p className="font-semibold">Dạng Tự luận / Trả lời ngắn:</p>
@@ -463,8 +618,8 @@ export default function ExamPage() {
 
                 <button
                   type="button"
-                  onClick={() => setCurrentIndex(prev => Math.min(examQuestions.length - 1, prev + 1))}
-                  disabled={currentIndex === examQuestions.length - 1}
+                  onClick={() => setCurrentIndex(prev => Math.min(activeExam.questions.length - 1, prev + 1))}
+                  disabled={currentIndex === activeExam.questions.length - 1}
                   className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
                 >
                   <span>Câu tiếp theo</span>
@@ -474,7 +629,7 @@ export default function ExamPage() {
             </div>
           </div>
 
-          {/* Right Pane (1 col): Question Palette Grid */}
+          {/* Question Palette Grid */}
           <div className="lg:col-span-1">
             <div className="sticky top-32 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -482,7 +637,7 @@ export default function ExamPage() {
               </h3>
 
               <div className="grid grid-cols-5 gap-1.5 max-h-[50vh] overflow-y-auto p-1">
-                {examQuestions.map((q, idx) => {
+                {activeExam.questions.map((q, idx) => {
                   const isCurrent = idx === currentIndex
                   const ans = userAnswers[q.id]
                   const hasAnswer = ans && (
@@ -493,12 +648,8 @@ export default function ExamPage() {
                   const isFlag = flaggedIds.has(q.id)
 
                   let bgClass = 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
-                  if (hasAnswer) {
-                    bgClass = 'bg-blue-600 text-white hover:bg-blue-700'
-                  }
-                  if (isCurrent) {
-                    bgClass += ' ring-2 ring-indigo-500 ring-offset-2'
-                  }
+                  if (hasAnswer) bgClass = 'bg-blue-600 text-white hover:bg-blue-700'
+                  if (isCurrent) bgClass += ' ring-2 ring-indigo-500 ring-offset-2'
 
                   return (
                     <button
@@ -516,7 +667,7 @@ export default function ExamPage() {
                 })}
               </div>
 
-              {/* Palette Legend */}
+              {/* Legend */}
               <div className="mt-4 border-t border-slate-100 pt-3 text-[11px] text-slate-500 dark:border-slate-800 space-y-1.5">
                 <div className="flex items-center gap-2">
                   <span className="h-2.5 w-2.5 rounded-full bg-blue-600" />
@@ -524,7 +675,7 @@ export default function ExamPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="h-2.5 w-2.5 rounded-full bg-slate-200 dark:bg-slate-700" />
-                  <span>Chưa làm ({examQuestions.length - answeredCount})</span>
+                  <span>Chưa làm ({activeExam.totalQuestions - answeredCount})</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
@@ -548,11 +699,11 @@ export default function ExamPage() {
 
               <div className="mt-3 text-sm text-slate-600 dark:text-slate-300 space-y-2">
                 <p>
-                  Bạn đã hoàn thành <strong>{answeredCount} / {examQuestions.length}</strong> câu hỏi.
+                  Bạn đã làm <strong>{answeredCount} / {activeExam.totalQuestions}</strong> câu hỏi.
                 </p>
-                {answeredCount < examQuestions.length && (
+                {answeredCount < activeExam.totalQuestions && (
                   <p className="text-rose-600 dark:text-rose-400 font-medium">
-                    ⚠️ Còn <strong>{examQuestions.length - answeredCount}</strong> câu bạn chưa trả lời!
+                    ⚠️ Còn <strong>{activeExam.totalQuestions - answeredCount}</strong> câu bạn chưa trả lời!
                   </p>
                 )}
                 <p>Thời gian còn lại: <strong>{formatTime(timeLeft)}</strong>.</p>
@@ -582,9 +733,9 @@ export default function ExamPage() {
   }
 
   // ==========================================
-  // VIEW 3: RESULT REPORT (Báo cáo kết quả & Lời giải)
+  // VIEW 3: RESULT REPORT (Báo cáo kết quả)
   // ==========================================
-  if (phase === 'result' && examResult) {
+  if (phase === 'result' && examResult && activeExam) {
     const scoreRank =
       examResult.score >= 9.0 ? { text: 'Xuất sắc (A+)', color: 'text-emerald-600' } :
       examResult.score >= 8.0 ? { text: 'Giỏi (A)', color: 'text-blue-600' } :
@@ -601,7 +752,7 @@ export default function ExamPage() {
           </div>
 
           <h2 className="mt-4 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-            Kết quả thi thử: {selectedPreset.title}
+            Kết quả: {activeExam.title} ({activeExam.categoryName})
           </h2>
 
           <div className="mt-2 text-5xl font-black text-slate-900 dark:text-white sm:text-6xl">
@@ -620,7 +771,7 @@ export default function ExamPage() {
             </div>
             <div className="flex items-center gap-1.5 text-emerald-600">
               <CheckCircle className="h-4 w-4" />
-              <span>Đúng hoàn toàn: <strong>{examResult.correctCount}</strong> câu</span>
+              <span>Đúng: <strong>{examResult.correctCount}</strong> câu</span>
             </div>
             <div className="flex items-center gap-1.5 text-rose-600">
               <XCircle className="h-4 w-4" />
@@ -631,6 +782,14 @@ export default function ExamPage() {
           {/* Action buttons */}
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
             <button
+              onClick={() => setPhase('lobby')}
+              className="flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 transition-all"
+            >
+              <ArrowRight className="h-4 w-4" />
+              <span>Trở về danh sách đề</span>
+            </button>
+
+            <button
               onClick={handleSaveAllMistakes}
               disabled={bulkSavedMistakes}
               className="flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-amber-500/20 hover:bg-amber-600 disabled:opacity-50 transition-all"
@@ -640,11 +799,11 @@ export default function ExamPage() {
             </button>
 
             <button
-              onClick={() => setPhase('lobby')}
+              onClick={() => handleStartExam(activeExam)}
               className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-all"
             >
               <RotateCcw className="h-4 w-4" />
-              <span>Thi đề khác</span>
+              <span>Thi lại đề này</span>
             </button>
           </div>
         </div>
@@ -655,7 +814,7 @@ export default function ExamPage() {
             Xem lại chi tiết từng câu hỏi & Lời giải
           </h3>
 
-          {examQuestions.map((q, idx) => {
+          {activeExam.questions.map((q, idx) => {
             const ans = userAnswers[q.id]
             let isCorrect = false
             if (q.type === 'Trắc nghiệm') {
@@ -688,37 +847,31 @@ export default function ExamPage() {
                       {q.type}
                     </span>
                   </div>
+
+                  <span className={`rounded-md px-2 py-0.5 text-xs font-bold ${
+                    isCorrect ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                  }`}>
+                    {isCorrect ? 'Chính xác' : 'Chưa đúng'}
+                  </span>
                 </div>
 
-                {/* Prompt */}
                 <div className="text-sm font-medium leading-relaxed text-slate-900 dark:text-slate-100 sm:text-base">
                   <MathText text={q.prompt} />
                 </div>
 
-                {/* Answer comparison */}
                 <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3.5 text-xs sm:text-sm dark:border-slate-800 dark:bg-slate-900">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+                  {q.type === 'Trắc nghiệm' && (
                     <div>
-                      {q.type === 'Trắc nghiệm' && (
-                        <span>
-                          Bạn đã chọn: <strong>{ans?.selected || 'Chưa chọn'}</strong> | Đáp án đúng:{' '}
-                          <strong className="text-emerald-600">{q.answer}</strong>
-                        </span>
-                      )}
-                      {q.type !== 'Trắc nghiệm' && (
-                        <div>
-                          <span className="font-semibold text-emerald-600">Đáp án tham khảo:</span>{' '}
-                          <MathText text={q.answer} />
-                        </div>
-                      )}
+                      Bạn đã chọn: <strong>{ans?.selected || 'Chưa chọn'}</strong> | Đáp án đúng:{' '}
+                      <strong className="text-emerald-600">{q.answer}</strong>
                     </div>
-
-                    <span className={`rounded-md px-2 py-0.5 text-xs font-bold ${
-                      isCorrect ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
-                    }`}>
-                      {isCorrect ? 'Chính xác' : 'Chưa đúng'}
-                    </span>
-                  </div>
+                  )}
+                  {q.type !== 'Trắc nghiệm' && (
+                    <div>
+                      <span className="font-semibold text-emerald-600">Đáp án tham khảo:</span>{' '}
+                      <MathText text={q.answer} />
+                    </div>
+                  )}
                 </div>
               </div>
             )
